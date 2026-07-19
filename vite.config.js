@@ -53,5 +53,6 @@ export default defineConfig({
   plugins: [vue(), tokenProxyPlugin()],
   server: {
     port: 5173,
+    strictPort: true,
   },
 });

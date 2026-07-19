@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import TokenForm from './components/TokenForm.vue';
 import TokenResult from './components/TokenResult.vue';
 import DecodedToken from './components/DecodedToken.vue';
+import { AUTO_CLEAR_SENSITIVE_DATA_MS } from './config.js';
 
 // ---- Theme (auto / light / dark) --------------------------------------------
 const THEME_KEY = 'oauth2-tool-theme';
@@ -29,17 +30,38 @@ const themeLabel = computed(
 // ---- Live clock for the decoded-token relative times ------------------------
 const now = ref(Date.now());
 let clock = null;
+let sensitiveDataTimer = null;
 onMounted(() => {
   clock = setInterval(() => (now.value = Date.now()), 1000);
 });
-onBeforeUnmount(() => clearInterval(clock));
+onBeforeUnmount(() => {
+  clearInterval(clock);
+  clearTimeout(sensitiveDataTimer);
+});
 
 // ---- Token request ----------------------------------------------------------
 const loading = ref(false);
 const error = ref(null);
 const result = ref(null); // { data, status, requestedAt }
+const tokenForm = ref(null);
+const autoClearMinutes = Math.round(AUTO_CLEAR_SENSITIVE_DATA_MS / 60_000);
+
+function clearSensitiveData() {
+  clearTimeout(sensitiveDataTimer);
+  sensitiveDataTimer = null;
+  tokenForm.value?.clearCredentials();
+  error.value = null;
+  result.value = null;
+}
+
+function scheduleSensitiveDataClear() {
+  clearTimeout(sensitiveDataTimer);
+  if (AUTO_CLEAR_SENSITIVE_DATA_MS <= 0) return;
+  sensitiveDataTimer = setTimeout(clearSensitiveData, AUTO_CLEAR_SENSITIVE_DATA_MS);
+}
 
 async function requestToken(form) {
+  scheduleSensitiveDataClear();
   loading.value = true;
   error.value = null;
   result.value = null;
@@ -95,7 +117,12 @@ const accessToken = computed(() => result.value?.data?.access_token || '');
 
     <main class="layout">
       <section class="col-form">
-        <TokenForm :loading="loading" @submit="requestToken" />
+        <TokenForm
+          ref="tokenForm"
+          :loading="loading"
+          @submit="requestToken"
+          @clear="clearSensitiveData"
+        />
       </section>
 
       <section class="col-result">
@@ -138,7 +165,12 @@ const accessToken = computed(() => result.value?.data?.access_token || '');
     </main>
 
     <footer class="foot">
-      <span>Requests are proxied server-side to avoid CORS. Your client secret is never stored.</span>
+      <span>
+        Requests are proxied server-side to avoid CORS. Credentials are never stored.
+        <template v-if="AUTO_CLEAR_SENSITIVE_DATA_MS > 0">
+          Sensitive data clears after {{ autoClearMinutes }} minutes.
+        </template>
+      </span>
     </footer>
   </div>
 </template>
