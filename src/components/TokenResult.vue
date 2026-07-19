@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import CopyButton from './CopyButton.vue';
 import { relativeTime } from '../lib/jwt.js';
 
@@ -19,6 +19,21 @@ onBeforeUnmount(() => clearInterval(timer));
 const KNOWN = ['access_token', 'token_type', 'expires_in', 'scope', 'refresh_token', 'id_token'];
 
 const accessToken = computed(() => props.token.access_token || '');
+const revealed = reactive({
+  access: false,
+  refresh: false,
+  id: false,
+  raw: false,
+});
+
+function resetRevealed() {
+  revealed.access = false;
+  revealed.refresh = false;
+  revealed.id = false;
+  revealed.raw = false;
+}
+
+watch(() => props.token, resetRevealed);
 
 const expiresAtMs = computed(() => {
   const secs = Number(props.token.expires_in);
@@ -58,6 +73,11 @@ function shortToken(t) {
   if (t.length <= 88) return t;
   return `${t.slice(0, 44)}…${t.slice(-24)}`;
 }
+
+function displayToken(token, key) {
+  if (!revealed[key]) return '••••••••••••••••••••••••';
+  return key === 'access' ? token : shortToken(token);
+}
 </script>
 
 <template>
@@ -80,9 +100,21 @@ function shortToken(t) {
     <div class="token-block">
       <div class="token-block-head">
         <span class="k">access_token</span>
-        <CopyButton :value="accessToken" />
+        <div class="token-actions">
+          <button
+            type="button"
+            class="reveal-btn"
+            :aria-label="`${revealed.access ? 'Hide' : 'Reveal'} access token`"
+            @click="revealed.access = !revealed.access"
+          >
+            {{ revealed.access ? 'Hide' : 'Reveal' }}
+          </button>
+          <CopyButton :value="accessToken" />
+        </div>
       </div>
-      <code class="token-value">{{ accessToken }}</code>
+      <code class="token-value" data-testid="access-token-value">
+        {{ displayToken(accessToken, 'access') }}
+      </code>
     </div>
 
     <!-- Properties grid -->
@@ -111,19 +143,47 @@ function shortToken(t) {
     <div v-if="token.refresh_token" class="token-block">
       <div class="token-block-head">
         <span class="k">refresh_token</span>
-        <CopyButton :value="token.refresh_token" />
+        <div class="token-actions">
+          <button
+            type="button"
+            class="reveal-btn"
+            :aria-label="`${revealed.refresh ? 'Hide' : 'Reveal'} refresh token`"
+            @click="revealed.refresh = !revealed.refresh"
+          >
+            {{ revealed.refresh ? 'Hide' : 'Reveal' }}
+          </button>
+          <CopyButton :value="token.refresh_token" />
+        </div>
       </div>
-      <code class="token-value muted">{{ shortToken(token.refresh_token) }}</code>
+      <code class="token-value muted">{{ displayToken(token.refresh_token, 'refresh') }}</code>
     </div>
     <div v-if="token.id_token" class="token-block">
       <div class="token-block-head">
         <span class="k">id_token</span>
-        <CopyButton :value="token.id_token" />
+        <div class="token-actions">
+          <button
+            type="button"
+            class="reveal-btn"
+            :aria-label="`${revealed.id ? 'Hide' : 'Reveal'} ID token`"
+            @click="revealed.id = !revealed.id"
+          >
+            {{ revealed.id ? 'Hide' : 'Reveal' }}
+          </button>
+          <CopyButton :value="token.id_token" />
+        </div>
       </div>
-      <code class="token-value muted">{{ shortToken(token.id_token) }}</code>
+      <code class="token-value muted">{{ displayToken(token.id_token, 'id') }}</code>
     </div>
 
-    <details class="raw">
+    <button
+      type="button"
+      class="raw-toggle"
+      :aria-expanded="revealed.raw"
+      @click="revealed.raw = !revealed.raw"
+    >
+      {{ revealed.raw ? 'Hide' : 'Reveal' }} raw JSON response
+    </button>
+    <details v-if="revealed.raw" class="raw" open>
       <summary>
         Raw JSON response
         <CopyButton :value="token" label="Copy JSON" @click.stop />
@@ -137,7 +197,7 @@ function shortToken(t) {
 .result {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 .card-head.row {
   display: flex;
@@ -185,6 +245,31 @@ function shortToken(t) {
   border-bottom: 1px solid var(--border);
   background: var(--surface-2);
 }
+.token-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.reveal-btn,
+.raw-toggle {
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.reveal-btn:hover,
+.raw-toggle:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.raw-toggle {
+  width: fit-content;
+}
 .token-value {
   display: block;
   padding: 12px;
@@ -202,33 +287,40 @@ function shortToken(t) {
 }
 .props {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
 }
 .prop {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 10px 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+  padding: 8px 10px;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
 .prop.wide {
   grid-column: 1 / -1;
+  align-items: flex-start;
 }
 .k {
+  flex: 0 0 auto;
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--text-muted);
 }
 .v {
-  font-size: 14px;
+  min-width: 0;
+  font-size: 13px;
   font-weight: 600;
+  text-align: right;
   word-break: break-word;
 }
 .scopes {
   display: flex;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 6px;
 }

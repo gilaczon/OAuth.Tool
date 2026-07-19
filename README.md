@@ -42,11 +42,28 @@ npm start       # serves dist/ + the /api/token proxy on http://localhost:4173
 Edit `src/config.js` to pre-fill the fields you use most often:
 
 ```js
-export const DEFAULT_TOKEN_URL = 'https://issuer.example.com/oauth2/token';
+export const DEFAULT_TOKEN_URL =
+  'https://login.microsoftonline.com/b618d97c-e68e-4843-8ea4-774f6b98a567/oauth2/v2.0/token';
 export const DEFAULT_GRANT_TYPE = 'client_credentials';
 export const DEFAULT_SCOPE = 'api.read api.write';
 export const DEFAULT_AUTH_STYLE = 'body'; // or 'basic'
+export const AUTO_CLEAR_SENSITIVE_DATA_MS = 5 * 60 * 1000;
 ```
+
+When the endpoint is Microsoft identity platform v2, the form recommends a
+single application scope ending in `/.default`, for example
+`https://graph.microsoft.com/.default` or `api://<application-id>/.default`.
+
+## Testing
+
+```bash
+npm test          # Node unit tests
+npm run test:e2e  # Playwright end-to-end tests in Chromium
+```
+
+Run `npx playwright install chromium` once if Chromium has not been installed
+for Playwright on the machine. Use `npm run test:e2e:ui` for Playwright's
+interactive test runner.
 
 ## Features
 
@@ -58,8 +75,10 @@ export const DEFAULT_AUTH_STYLE = 'body'; // or 'basic'
   descriptions for registered claims and formatted timestamps (`exp`, `iat`,
   `nbf`) plus relative time. Opaque (non-JWT) tokens are detected and explained.
 - Auto light/dark theme (follows the OS) with a manual Auto/Light/Dark toggle.
-- Client secret is never persisted; the client ID is remembered only if you opt
-  in.
+- Client credentials are never persisted.
+- Access, refresh and ID tokens are masked until explicitly revealed.
+- Credentials and token results can be cleared immediately and auto-clear after
+  five minutes by default.
 
 ## Security defaults
 
