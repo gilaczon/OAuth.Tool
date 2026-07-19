@@ -1,0 +1,149 @@
+/* ---------------------------------------------------------------------------
+   Theme tokens. Defaults to the OS preference via prefers-color-scheme; the
+   in-app toggle stamps data-theme="light|dark" on <html> to override.
+   --------------------------------------------------------------------------- */
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
+  --font-mono: 'SFMono-Regular', ui-monospace, 'JetBrains Mono', 'Fira Code',
+    Menlo, Consolas, monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.06);
+
+  /* Light palette */
+  --bg: #f6f7f9;
+  --bg-grad: radial-gradient(1200px 600px at 10% -10%, #eef2ff 0%, transparent 60%),
+    radial-gradient(1000px 500px at 100% 0%, #ecfeff 0%, transparent 55%);
+  --surface: #ffffff;
+  --surface-2: #f9fafb;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-soft: #eef2ff;
+  --success: #059669;
+  --success-soft: #ecfdf5;
+  --danger: #dc2626;
+  --danger-soft: #fef2f2;
+  --warning: #d97706;
+  --warning-soft: #fffbeb;
+  --code-bg: #f8fafc;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0f17;
+    --bg-grad: radial-gradient(1200px 600px at 10% -10%, #1e1b4b 0%, transparent 55%),
+      radial-gradient(1000px 500px at 100% 0%, #083344 0%, transparent 50%);
+    --surface: #121826;
+    --surface-2: #0f1522;
+    --border: #232b3b;
+    --border-strong: #313c52;
+    --text: #e6edf6;
+    --text-muted: #9aa7ba;
+    --text-faint: #6b7890;
+    --accent: #818cf8;
+    --accent-hover: #a5b4fc;
+    --accent-soft: #1e223a;
+    --success: #34d399;
+    --success-soft: #0c2a22;
+    --danger: #f87171;
+    --danger-soft: #2b1416;
+    --warning: #fbbf24;
+    --warning-soft: #2a2210;
+    --code-bg: #0d1320;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.35);
+  }
+}
+
+/* Explicit overrides from the toggle take priority over the media query. */
+:root[data-theme='light'] {
+  --bg: #f6f7f9;
+  --bg-grad: radial-gradient(1200px 600px at 10% -10%, #eef2ff 0%, transparent 60%),
+    radial-gradient(1000px 500px at 100% 0%, #ecfeff 0%, transparent 55%);
+  --surface: #ffffff;
+  --surface-2: #f9fafb;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-soft: #eef2ff;
+  --success: #059669;
+  --success-soft: #ecfdf5;
+  --danger: #dc2626;
+  --danger-soft: #fef2f2;
+  --warning: #d97706;
+  --warning-soft: #fffbeb;
+  --code-bg: #f8fafc;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme='dark'] {
+  --bg: #0b0f17;
+  --bg-grad: radial-gradient(1200px 600px at 10% -10%, #1e1b4b 0%, transparent 55%),
+    radial-gradient(1000px 500px at 100% 0%, #083344 0%, transparent 50%);
+  --surface: #121826;
+  --surface-2: #0f1522;
+  --border: #232b3b;
+  --border-strong: #313c52;
+  --text: #e6edf6;
+  --text-muted: #9aa7ba;
+  --text-faint: #6b7890;
+  --accent: #818cf8;
+  --accent-hover: #a5b4fc;
+  --accent-soft: #1e223a;
+  --success: #34d399;
+  --success-soft: #0c2a22;
+  --danger: #f87171;
+  --danger-soft: #2b1416;
+  --warning: #fbbf24;
+  --warning-soft: #2a2210;
+  --code-bg: #0d1320;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--text);
+  background-color: var(--bg);
+  background-image: var(--bg-grad);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+button {
+  font-family: inherit;
+}
+
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Shared surface used by the form and result panels. */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 22px;
+}
