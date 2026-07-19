@@ -1,6 +1,12 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { handleTokenRequest } from './server/tokenHandler.js';
+import {
+  assertJsonContentType,
+  assertSameOrigin,
+  readJsonBody,
+  setApiResponseHeaders,
+} from './server/requestUtils.js';
 
 // Dev-server middleware that exposes POST /api/token and performs the OAuth2
 // token exchange server-side, so the browser never makes a cross-origin call to
@@ -10,6 +16,7 @@ function tokenProxyPlugin() {
     name: 'oauth-token-proxy',
     configureServer(server) {
       server.middlewares.use('/api/token', (req, res) => {
+        setApiResponseHeaders(res);
         if (req.method !== 'POST') {
           res.statusCode = 405;
           res.setHeader('Content-Type', 'application/json');
@@ -17,13 +24,11 @@ function tokenProxyPlugin() {
           return;
         }
 
-        let raw = '';
-        req.on('data', (chunk) => {
-          raw += chunk;
-        });
-        req.on('end', async () => {
+        (async () => {
           try {
-            const parsed = raw ? JSON.parse(raw) : {};
+            assertSameOrigin(req);
+            assertJsonContentType(req);
+            const parsed = await readJsonBody(req);
             const result = await handleTokenRequest(parsed);
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
@@ -38,7 +43,7 @@ function tokenProxyPlugin() {
               }),
             );
           }
-        });
+        })();
       });
     },
   };

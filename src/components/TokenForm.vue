@@ -23,13 +23,17 @@ const form = reactive({
   authStyle: DEFAULT_AUTH_STYLE,
 });
 
+const rememberClientId = ref(false);
+const showSecret = ref(false);
+
 // Restore previously entered non-secret fields (secret is never persisted).
 try {
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
   if (saved) {
     form.tokenUrl = saved.tokenUrl ?? form.tokenUrl;
     form.grantType = saved.grantType ?? form.grantType;
-    form.clientId = saved.clientId ?? form.clientId;
+    rememberClientId.value = saved.rememberClientId === true;
+    form.clientId = rememberClientId.value ? (saved.clientId ?? form.clientId) : '';
     form.scope = saved.scope ?? form.scope;
     form.authStyle = saved.authStyle ?? form.authStyle;
   }
@@ -37,18 +41,16 @@ try {
   /* ignore */
 }
 
-const rememberClientId = ref(true);
-const showSecret = ref(false);
-
 watch(
-  form,
-  (v) => {
+  [form, rememberClientId],
+  ([v, remember]) => {
     const toSave = {
       tokenUrl: v.tokenUrl,
       grantType: v.grantType,
       scope: v.scope,
       authStyle: v.authStyle,
-      clientId: rememberClientId.value ? v.clientId : '',
+      rememberClientId: remember,
+      clientId: remember ? v.clientId : '',
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));

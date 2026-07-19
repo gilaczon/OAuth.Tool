@@ -61,6 +61,25 @@ export const DEFAULT_AUTH_STYLE = 'body'; // or 'basic'
 - Client secret is never persisted; the client ID is remembered only if you opt
   in.
 
+## Security defaults
+
+The production server listens on `127.0.0.1` by default. Token endpoints must
+use HTTPS, resolve only to public network addresses, and must not redirect.
+Requests time out after 15 seconds, request bodies are limited to 64 KiB, and
+token responses are limited to 2 MiB.
+
+For controlled development environments, these restrictions can be adjusted
+with environment variables:
+
+- `HOST` and `PORT` select the listening interface and port.
+- `ALLOW_PRIVATE_TOKEN_URLS=true` allows private or loopback token endpoints.
+- `ALLOW_INSECURE_TOKEN_URLS=true` allows plain HTTP token endpoints.
+- `TOKEN_REQUEST_TIMEOUT_MS` changes the outbound timeout.
+- `MAX_TOKEN_RESPONSE_BYTES` changes the maximum token response size.
+
+Do not expose this utility publicly. If private or insecure endpoints are
+enabled, keep the server bound to localhost or another trusted interface.
+
 ## Notes
 
 - The decoder does **not** verify the token signature — this is an inspection

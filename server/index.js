@@ -6,13 +6,20 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { join, extname, normalize } from 'node:path';
+import { join, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleTokenRequest } from './tokenHandler.js';
+import {
+  assertJsonContentType,
+  assertSameOrigin,
+  readJsonBody,
+  setApiResponseHeaders,
+} from './requestUtils.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const distDir = join(__dirname, '..', 'dist');
 const PORT = process.env.PORT || 4173;
+const HOST = process.env.HOST || '127.0.0.1';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -26,21 +33,26 @@ const MIME = {
   '.woff2': 'font/woff2',
 };
 
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    let raw = '';
-    req.on('data', (chunk) => (raw += chunk));
-    req.on('end', () => resolve(raw));
-    req.on('error', reject);
-  });
-}
-
 async function serveStatic(req, res) {
-  // Prevent path traversal, then map "/" to index.html.
-  const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
-  let rel = normalize(urlPath).replace(/^(\.\.[/\\])+/, '');
-  if (rel === '/' || rel === '') rel = '/index.html';
-  let filePath = join(distDir, rel);
+  let urlPath;
+  try {
+    urlPath = decodeURIComponent(new URL(req.url || '/', 'http://localhost').pathname);
+  } catch {
+    res.statusCode = 400;
+    res.end('Bad request');
+    return;
+  }
+
+  const distRoot = resolve(distDir);
+  const relativePath = urlPath.replace(/^[/\\]+/, '') || 'index.html';
+  let filePath = resolve(distRoot, relativePath);
+
+  // URL paths are untrusted; never allow the resolved path to escape dist/.
+  if (!filePath.startsWith(`${distRoot}${sep}`)) {
+    res.statusCode = 404;
+    res.end('Not found');
+    return;
+  }
 
   // SPA fallback: unknown non-asset routes serve index.html.
   if (!existsSync(filePath)) {
@@ -59,7 +71,9 @@ async function serveStatic(req, res) {
 }
 
 const server = http.createServer(async (req, res) => {
-  if (req.url && req.url.startsWith('/api/token')) {
+  const pathname = new URL(req.url || '/', 'http://localhost').pathname;
+  if (pathname === '/api/token') {
+    setApiResponseHeaders(res);
     if (req.method !== 'POST') {
       res.statusCode = 405;
       res.setHeader('Content-Type', 'application/json');
@@ -67,8 +81,9 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     try {
-      const raw = await readBody(req);
-      const parsed = raw ? JSON.parse(raw) : {};
+      assertSameOrigin(req);
+      assertJsonContentType(req);
+      const parsed = await readJsonBody(req);
       const result = await handleTokenRequest(parsed);
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json');
@@ -90,6 +105,6 @@ if (!existsSync(distDir)) {
   console.warn('[server] dist/ not found — run "npm run build" first.');
 }
 
-server.listen(PORT, () => {
-  console.log(`OAuth2 tool server running at http://localhost:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`OAuth2 tool server running at http://${HOST}:${PORT}`);
 });
