@@ -197,10 +197,18 @@ test('uses a saved profile without exposing its secret to the browser', async ({
 
   await page.getByLabel('Saved profile', { exact: true }).selectOption('example-uat');
 
-  // The profile supplies the identity; the secret input is replaced by a note.
+  // The profile supplies the whole request; the secret input becomes a note and
+  // every field the profile controls is locked.
   await expect(page.getByLabel('Client ID')).toHaveValue('profile-client-id');
   await expect(page.locator('#clientSecret')).toHaveCount(0);
   await expect(page.getByText('Provided by the server')).toBeVisible();
+
+  await expect(page.getByLabel('Token endpoint (OAuth2 URL)')).toHaveAttribute('readonly', '');
+  await expect(page.getByLabel('Client ID')).toHaveAttribute('readonly', '');
+  await expect(page.getByRole('textbox', { name: 'Scope optional' })).toHaveAttribute(
+    'readonly',
+    '',
+  );
 
   await page.getByRole('button', { name: 'Request Token' }).click();
 
@@ -224,6 +232,13 @@ test('switching back to manual entry restores the secret field', async ({ page }
 
   await expect(page.locator('#clientSecret')).toBeVisible();
   await expect(page.getByLabel('Client ID')).toHaveValue('');
+
+  // Everything the profile had locked is editable again.
+  await expect(page.getByLabel('Token endpoint (OAuth2 URL)')).not.toHaveAttribute('readonly', '');
+  await expect(page.getByRole('textbox', { name: 'Scope optional' })).not.toHaveAttribute(
+    'readonly',
+    '',
+  );
 });
 
 test('remembers the selected profile across reloads', async ({ page }) => {
