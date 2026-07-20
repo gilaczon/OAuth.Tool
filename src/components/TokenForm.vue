@@ -200,6 +200,7 @@ defineExpose({ clearCredentials });
         autocomplete="off"
         spellcheck="false"
         placeholder="https://issuer.example.com/oauth2/token"
+        :readonly="usingProfile"
         required
       />
     </div>
@@ -273,6 +274,7 @@ defineExpose({ clearCredentials });
         type="text"
         autocomplete="off"
         spellcheck="false"
+        :readonly="usingProfile"
         :placeholder="
           isMicrosoftEndpoint
             ? 'https://graph.microsoft.com/.default'
