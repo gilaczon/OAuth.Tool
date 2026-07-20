@@ -4,6 +4,7 @@ import TokenForm from './components/TokenForm.vue';
 import TokenResult from './components/TokenResult.vue';
 import DecodedToken from './components/DecodedToken.vue';
 import { AUTO_CLEAR_SENSITIVE_DATA_MS } from './config.js';
+import { apiFetch, SessionExpiredError } from './lib/api.js';
 
 // ---- Theme (auto / light / dark) --------------------------------------------
 const THEME_KEY = 'oauth2-tool-theme';
@@ -66,7 +67,7 @@ async function requestToken(form) {
   error.value = null;
   result.value = null;
   try {
-    const resp = await fetch('/api/token', {
+    const resp = await apiFetch('/api/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form),
@@ -90,7 +91,10 @@ async function requestToken(form) {
     }
     result.value = { data: payload.data, status: payload.status, requestedAt: payload.requestedAt };
   } catch (e) {
-    error.value = { title: 'Request failed', detail: String(e.message || e) };
+    error.value =
+      e instanceof SessionExpiredError
+        ? { title: 'Session expired', detail: e.message }
+        : { title: 'Request failed', detail: String(e.message || e) };
   } finally {
     loading.value = false;
   }
@@ -166,7 +170,9 @@ const accessToken = computed(() => result.value?.data?.access_token || '');
 
     <footer class="foot">
       <span>
-        Requests are proxied server-side to avoid CORS. Credentials are never stored.
+        Requests are proxied server-side to avoid CORS. Typed credentials are never
+        stored; saved profiles keep their secrets on the server and are referenced by
+        name only.
         <template v-if="AUTO_CLEAR_SENSITIVE_DATA_MS > 0">
           Sensitive data clears after {{ autoClearMinutes }} minutes.
         </template>
