@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { E2E_PROFILE_SECRET } from './global-setup.js';
 
 const DEFAULT_TOKEN_URL =
   'https://login.microsoftonline.com/b618d97c-e68e-4843-8ea4-774f6b98a567/oauth2/v2.0/token';
@@ -185,6 +186,54 @@ test('clears credentials and token results on demand', async ({ page }) => {
   await expect(page.getByLabel('Client ID')).toHaveValue('');
   await expect(page.getByLabel('Client secret')).toHaveValue('');
   await expect(page.getByRole('heading', { name: 'No token yet' })).toBeVisible();
+});
+
+test('uses a saved profile without exposing its secret to the browser', async ({ page }) => {
+  const getRequestBody = await mockTokenResponse(page, {
+    access_token: 'opaque-token',
+    token_type: 'Bearer',
+  });
+  await page.goto('/');
+
+  await page.getByLabel('Saved profile', { exact: true }).selectOption('example-uat');
+
+  // The profile supplies the identity; the secret input is replaced by a note.
+  await expect(page.getByLabel('Client ID')).toHaveValue('profile-client-id');
+  await expect(page.locator('#clientSecret')).toHaveCount(0);
+  await expect(page.getByText('Provided by the server')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Request Token' }).click();
+
+  const body = getRequestBody();
+  expect(body.profileId).toBe('example-uat');
+  expect(body.clientSecret).toBeUndefined();
+
+  // The metadata endpoint must never carry the secret itself.
+  const payload = await (await page.request.get('/api/profiles')).text();
+  expect(payload).not.toContain(E2E_PROFILE_SECRET);
+  expect(payload).toContain('profile-client-id');
+});
+
+test('switching back to manual entry restores the secret field', async ({ page }) => {
+  await page.goto('/');
+
+  await page.getByLabel('Saved profile', { exact: true }).selectOption('example-uat');
+  await expect(page.locator('#clientSecret')).toHaveCount(0);
+
+  await page.getByLabel('Saved profile', { exact: true }).selectOption('');
+
+  await expect(page.locator('#clientSecret')).toBeVisible();
+  await expect(page.getByLabel('Client ID')).toHaveValue('');
+});
+
+test('remembers the selected profile across reloads', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Saved profile', { exact: true }).selectOption('example-uat');
+
+  await page.reload();
+
+  await expect(page.getByLabel('Saved profile', { exact: true })).toHaveValue('example-uat');
+  await expect(page.getByLabel('Client ID')).toHaveValue('profile-client-id');
 });
 
 test('automatically clears sensitive data after five minutes', async ({ page }) => {

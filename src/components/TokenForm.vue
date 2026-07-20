@@ -1,11 +1,12 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import {
   DEFAULT_TOKEN_URL,
   DEFAULT_GRANT_TYPE,
   DEFAULT_SCOPE,
   DEFAULT_AUTH_STYLE,
 } from '../config.js';
+import { apiFetch, SessionExpiredError } from '../lib/api.js';
 import InfoTooltip from './InfoTooltip.vue';
 
 const props = defineProps({
@@ -26,6 +27,43 @@ const form = reactive({
 
 const showSecret = ref(false);
 
+// ---- Saved profiles ---------------------------------------------------------
+// The server holds the secrets; the browser only ever sees these metadata
+// entries. Selecting one sends a profileId instead of a client secret.
+const profiles = ref([]);
+const selectedProfileId = ref('');
+const sessionExpired = ref(false);
+
+const selectedProfile = computed(
+  () => profiles.value.find((profile) => profile.id === selectedProfileId.value) || null,
+);
+const usingProfile = computed(() => Boolean(selectedProfile.value));
+
+function applyProfile(id) {
+  selectedProfileId.value = id;
+  const profile = selectedProfile.value;
+  if (!profile) return;
+
+  form.tokenUrl = profile.tokenUrl;
+  form.clientId = profile.clientId;
+  form.scope = profile.scope ?? '';
+  form.authStyle = profile.authStyle ?? DEFAULT_AUTH_STYLE;
+  form.clientSecret = '';
+  showSecret.value = false;
+}
+
+function onProfileChange(event) {
+  const { value } = event.target;
+  if (!value) {
+    // Back to manual entry: keep the endpoint, drop the profile's identity.
+    selectedProfileId.value = '';
+    form.clientId = '';
+    form.clientSecret = '';
+    return;
+  }
+  applyProfile(value);
+}
+
 const isMicrosoftEndpoint = computed(() => {
   try {
     const url = new URL(form.tokenUrl);
@@ -44,7 +82,10 @@ const microsoftScopeWarning = computed(() => {
   return scopes.length !== 1 || !scopes[0].toLowerCase().endsWith('/.default');
 });
 
-// Restore reusable request preferences. Credentials are never persisted.
+// Restore reusable request preferences. Credentials are still never persisted —
+// a saved profile is remembered by id only, and the secret it refers to lives on
+// the server, never in the browser.
+let restoredProfileId = '';
 try {
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
   if (saved) {
@@ -52,6 +93,7 @@ try {
     form.grantType = saved.grantType ?? form.grantType;
     form.scope = saved.scope ?? form.scope;
     form.authStyle = saved.authStyle ?? form.authStyle;
+    restoredProfileId = saved.profileId || '';
 
     // Remove credentials saved by versions that offered a remember-client-ID option.
     delete saved.clientId;
@@ -63,13 +105,14 @@ try {
 }
 
 watch(
-  form,
-  (v) => {
+  [form, selectedProfileId],
+  ([v, profileId]) => {
     const toSave = {
       tokenUrl: v.tokenUrl,
       grantType: v.grantType,
       scope: v.scope,
       authStyle: v.authStyle,
+      profileId,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
@@ -80,8 +123,30 @@ watch(
   { deep: true },
 );
 
+onMounted(async () => {
+  try {
+    const response = await apiFetch('/api/profiles');
+    if (!response.ok) return;
+    const payload = await response.json();
+    profiles.value = Array.isArray(payload.profiles) ? payload.profiles : [];
+
+    if (restoredProfileId && profiles.value.some(({ id }) => id === restoredProfileId)) {
+      applyProfile(restoredProfileId);
+    }
+  } catch (err) {
+    // No profiles configured, or the session lapsed — either way the form still
+    // works for manual credential entry.
+    sessionExpired.value = err instanceof SessionExpiredError;
+  }
+});
+
 function onSubmit() {
-  emit('submit', { ...form });
+  const payload = { ...form };
+  if (usingProfile.value) {
+    payload.profileId = selectedProfileId.value;
+    delete payload.clientSecret;
+  }
+  emit('submit', payload);
 }
 
 function clearCredentials() {
@@ -103,6 +168,26 @@ defineExpose({ clearCredentials });
     <div class="card-head">
       <h2>Request a token</h2>
       <p class="sub">Client credentials grant</p>
+    </div>
+
+    <p v-if="sessionExpired" class="session-warning" role="alert">
+      Your session expired. Reload the page to sign in again.
+    </p>
+
+    <div v-if="profiles.length" class="field">
+      <div class="label-row">
+        <label for="profile">Saved profile</label>
+        <InfoTooltip label="About saved profiles">
+          Profiles are configured on the server. The client secret stays there and is
+          never sent to your browser.
+        </InfoTooltip>
+      </div>
+      <select id="profile" :value="selectedProfileId" @change="onProfileChange">
+        <option value="">Manual entry</option>
+        <option v-for="profile in profiles" :key="profile.id" :value="profile.id">
+          {{ profile.name }}
+        </option>
+      </select>
     </div>
 
     <div class="field">
@@ -139,13 +224,17 @@ defineExpose({ clearCredentials });
         autocomplete="off"
         spellcheck="false"
         placeholder="your-client-id"
+        :readonly="usingProfile"
         required
       />
     </div>
 
     <div class="field">
       <label for="clientSecret">Client secret</label>
-      <div class="input-affix">
+      <div v-if="usingProfile" class="server-secret">
+        Provided by the server for <strong>{{ selectedProfile.name }}</strong>
+      </div>
+      <div v-else class="input-affix">
         <input
           id="clientSecret"
           v-model="form.clientSecret"
@@ -275,7 +364,8 @@ label,
 }
 input[type='text'],
 input[type='url'],
-input[type='password'] {
+input[type='password'],
+select {
   width: 100%;
   padding: 10px 12px;
   font-size: 14px;
@@ -286,9 +376,32 @@ input[type='password'] {
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-input:focus {
+input:focus,
+select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+input[readonly] {
+  color: var(--text-muted);
+  cursor: default;
+}
+.server-secret {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+.session-warning {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--warning);
+  background: var(--surface-2);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
 }
 .input-affix {
   position: relative;

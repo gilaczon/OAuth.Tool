@@ -1,6 +1,6 @@
 const DEFAULT_MAX_BODY_BYTES = 64 * 1024;
 
-function httpError(message, statusCode) {
+export function httpError(message, statusCode) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;

@@ -1,5 +1,5 @@
 // Standalone production server: serves the built SPA from dist/ and exposes the
-// POST /api/token proxy endpoint. Zero external dependencies (Node 22+).
+// /api endpoints. Zero external dependencies (Node 22+).
 //
 //   npm run build && npm start
 //
@@ -8,13 +8,7 @@ import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { handleTokenRequest } from './tokenHandler.js';
-import {
-  assertJsonContentType,
-  assertSameOrigin,
-  readJsonBody,
-  setApiResponseHeaders,
-} from './requestUtils.js';
+import { handleApiRequest } from './api.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const distDir = join(__dirname, '..', 'dist');
@@ -72,31 +66,7 @@ async function serveStatic(req, res) {
 
 const server = http.createServer(async (req, res) => {
   const pathname = new URL(req.url || '/', 'http://localhost').pathname;
-  if (pathname === '/api/token') {
-    setApiResponseHeaders(res);
-    if (req.method !== 'POST') {
-      res.statusCode = 405;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'method_not_allowed' }));
-      return;
-    }
-    try {
-      assertSameOrigin(req);
-      assertJsonContentType(req);
-      const parsed = await readJsonBody(req);
-      const result = await handleTokenRequest(parsed);
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify(result));
-    } catch (err) {
-      res.statusCode = err.statusCode || 500;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(
-        JSON.stringify({ error: 'proxy_error', message: String(err?.message || err) }),
-      );
-    }
-    return;
-  }
+  if (await handleApiRequest(req, res, pathname)) return;
 
   await serveStatic(req, res);
 });

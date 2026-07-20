@@ -3,6 +3,10 @@
 //
 // Set the values you use most often here — they pre-fill the form on load and
 // can still be edited in the UI before requesting a token.
+//
+// Never put a client secret in this file: it is committed to a public repository
+// and ships to the browser in the built bundle. For saved credentials, use the
+// server-side profiles described in the README (OAUTH_PROFILES).
 // ---------------------------------------------------------------------------
 
 // Default OAuth2 token endpoint. Replace with the endpoint you use most.
